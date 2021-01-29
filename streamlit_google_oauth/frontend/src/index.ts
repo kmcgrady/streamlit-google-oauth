@@ -58,6 +58,7 @@ function onRender(event: Event): void {
       client_id: data.args.client_id,
       redirect_uri: window.location.href, // Redirect to itself.
       access_type: "offline",
+      prompt: "consent",
       response_type: "code",
       scope: data.args.scopes.join(" "),
       include_granted_scopes: "true",

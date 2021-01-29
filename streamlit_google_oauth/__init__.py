@@ -1,4 +1,6 @@
 import os
+import requests
+import time
 import streamlit.components.v1 as components
 
 # Create a _RELEASE constant. We'll set this to False while we're developing
@@ -37,13 +39,60 @@ else:
     build_dir = os.path.join(parent_dir, "frontend/build")
     _component_func = components.declare_component("st_google_oauth", path=build_dir)
 
+class GoogleCredentials:
+    def __init__(self, client_id, client_secret):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self._access_token = None
+        self._refresh_token = None
+        self._last_refreshed = None
+        self._expires_in = None
+    
+    def create_tokens(self, code, redirect_uri):
+        print("Creating Tokens")
+        r = requests.post("https://oauth2.googleapis.com/token", data={
+            'code': code,
+            'client_id': self.client_id,
+            'client_secret': self.client_secret,
+            'redirect_uri': redirect_uri,
+            'grant_type': "authorization_code"
+        })
+        json = r.json()
+
+        if 'access_token' in json and 'refresh_token' in json and 'expires_in' in json:
+            self._last_refreshed = time.time()
+            self._access_token = json['access_token']
+            self._refresh_token = json['refresh_token']
+            self._expires_in = json['expires_in'] - 120
+    
+    def get_access_token(self):
+        if self._access_token is None:
+            return None
+
+        if time.time() - self._last_refreshed >= self._expires_in:
+            r = requests.post("https://oauth2.googleapis.com/token", data={
+                'client_id': self.client_id,
+                'client_secret': self.client_secret,
+                'refresh_token': self._refresh_token,
+                'grant_type': "refresh_token"
+            })
+            json = r.json()
+
+            if 'access_token' in json and 'refresh_token' in json and 'expires_in' in json:
+                self._last_refreshed = time.time()
+                self._access_token = json['access_token']
+                self._refresh_token = json['refresh_token']
+                self._expire_time = json['expires_in'] - 120
+
+        return self._access_token
+
 
 # Create a wrapper function for the component. This is an optional
 # best practice - we could simply expose the component function returned by
 # `declare_component` and call it done. The wrapper allows us to customize
 # our component's API: we can pre-process its input args, post-process its
 # output value, and add a docstring for users.
-def st_google_oauth(client_id, client_secret, scopes=[], key=None):
+def st_google_oauth(credentials, scopes=[], key=None):
     """Create a new instance of "my_component".
 
     Parameters
@@ -64,35 +113,21 @@ def st_google_oauth(client_id, client_secret, scopes=[], key=None):
         frontend.)
 
     """
-    # Call through to our private component function. Arguments we pass here
-    # will be sent to the frontend, where they'll be available in an "args"
-    # dictionary.
-    #
-    # "default" is a special argument that specifies the initial return
-    # value of the component before the user has interacted with it.
-    opts = _component_func(client_id=client_id, client_secret=client_secret, scopes=scopes, key=key, default=None)
+    token = credentials.get_access_token()
+    if token is not None:
+        print("No Need to rerun, just return the token")
+        return token
+
+    opts = _component_func(client_id=credentials.client_id, client_secret=credentials.client_secret, scopes=scopes, key=key, default=None)
     if opts is None:
         return None
 
     code, redirect_uri = opts
-
-    import requests
-    r = requests.post("https://oauth2.googleapis.com/token", data={
-        'code': code,
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'redirect_uri': redirect_uri,
-        'grant_type': "authorization_code"
-    })
-    json = r.json()
-
-    if 'access_token' in json:
-        return json['access_token']
-
+    credentials.create_tokens(code, redirect_uri)
 
     # We could modify the value returned from the component if we wanted.
     # There's no need to do this in our simple example - but it's an option.
-    return None
+    return credentials.get_access_token()
 
 
 # Add some test code to play with the component while it's in development.
@@ -108,8 +143,10 @@ if not _RELEASE:
     # "name" argument without having it get recreated.
     CLIENT_ID = ""
     CLIENT_SECRET = ""
-    SCOPES = []
-    token = st_google_oauth(CLIENT_ID, CLIENT_SECRET, scopes=SCOPES, key="foo")
+    SCOPES = [""]
+    state = st.beta_session_state(credentials=GoogleCredentials(CLIENT_ID, CLIENT_SECRET))
+    token = st_google_oauth(state.credentials, scopes=SCOPES, key="foo")
+
     if token is not None:
         import requests
         r = requests.get("https://www.googleapis.com/drive/v3/about?fields=user&access_token=" + token)
