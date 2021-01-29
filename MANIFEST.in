@@ -1,1 +1,1 @@
-recursive-include src/frontend/build *
+recursive-include streamlit_google_oauth/frontend/build *
