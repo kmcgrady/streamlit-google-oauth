@@ -25,7 +25,14 @@ function receiveMessage(event: MessageEvent) {
     return
   }
 
-  Streamlit.setComponentValue(data)
+  setTimeout(logout, (parseInt(data.expires_in, 10) - 120) * 1000)
+
+  Streamlit.setComponentValue(data.access_token)
+}
+
+function logout() {
+  localStorage.removeItem("oauth2-params")
+  Streamlit.setComponentValue(null)
 }
 
 /**
@@ -39,16 +46,16 @@ function onRender(event: Event): void {
   const data = (event as CustomEvent<RenderData>).detail
   const oauthParams = localStorage.getItem("oauth2-params")
   window.removeEventListener("message", receiveMessage)
+
+  const button = document.body.appendChild(document.createElement("button"))
+
   if (oauthParams) {
-    const loggedInSpan = document.body.appendChild(
-      document.createElement("span")
-    )
-    loggedInSpan.textContent = "Logged In!"
+    button.textContent = "Log out"
+    button.addEventListener("click", () => {
+      logout()
+    })
     return
   }
-
-  const span = document.body.appendChild(document.createElement("span"))
-  const button = span.appendChild(document.createElement("button"))
 
   button.textContent = "Login with Google!"
   button.addEventListener("click", () => {
@@ -86,7 +93,7 @@ function onRender(event: Event): void {
   // case it has changed. (This isn't strictly necessary for the example
   // because our height stays fixed, but this is a low-cost function, so
   // there's no harm in doing it redundantly.)
-  Streamlit.setFrameHeight(200)
+  Streamlit.setFrameHeight(50)
 }
 
 // Attach our `onRender` handler to Streamlit's render event.
@@ -98,4 +105,4 @@ Streamlit.setComponentReady()
 
 // Finally, tell Streamlit to update our initial height. We omit the
 // `height` parameter here to have it default to our scrollHeight.
-Streamlit.setFrameHeight(200)
+Streamlit.setFrameHeight(50)
