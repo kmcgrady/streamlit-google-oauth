@@ -70,11 +70,29 @@ def st_google_oauth(client_id, client_secret, scopes=[], key=None):
     #
     # "default" is a special argument that specifies the initial return
     # value of the component before the user has interacted with it.
-    component_value = _component_func(client_id=client_id, client_secret=client_secret, scopes=scopes, key=key, default=None)
+    opts = _component_func(client_id=client_id, client_secret=client_secret, scopes=scopes, key=key, default=None)
+    if opts is None:
+        return None
+
+    code, redirect_uri = opts
+
+    import requests
+    r = requests.post("https://oauth2.googleapis.com/token", data={
+        'code': code,
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'redirect_uri': redirect_uri,
+        'grant_type': "authorization_code"
+    })
+    json = r.json()
+
+    if 'access_token' in json:
+        return json['access_token']
+
 
     # We could modify the value returned from the component if we wanted.
     # There's no need to do this in our simple example - but it's an option.
-    return component_value
+    return None
 
 
 # Add some test code to play with the component while it's in development.
@@ -91,5 +109,9 @@ if not _RELEASE:
     CLIENT_ID = ""
     CLIENT_SECRET = ""
     SCOPES = []
-    payload = st_google_oauth(CLIENT_ID, CLIENT_SECRET, scopes=SCOPES, key="foo")
-    st.write(payload)
+    token = st_google_oauth(CLIENT_ID, CLIENT_SECRET, scopes=SCOPES, key="foo")
+    if token is not None:
+        import requests
+        r = requests.get("https://www.googleapis.com/drive/v3/about?fields=user&access_token=" + token)
+        json = r.json()
+        st.json(json)

@@ -1,18 +1,15 @@
 import { Streamlit, RenderData } from "streamlit-component-lib"
 
-if (window.location.hash) {
-  const fragmentString = window.location.hash.substring(1)
-  const params: Record<string, string> = {}
-  const regex = /([^&=]+)=([^&]*)/g
-  let m
-  while ((m = regex.exec(fragmentString))) {
-    params[decodeURIComponent(m[1])] = decodeURIComponent(m[2])
-  }
-  if (Object.keys(params).length > 0) {
-    localStorage.setItem("oauth2-params", JSON.stringify(params))
-    window.opener.postMessage(params)
-    window.close()
-  }
+const url = new URL(window.location.href)
+const code = url.searchParams.get("code")
+
+if (code) {
+  const state = url.searchParams.get("state")
+  window.opener.postMessage({
+    code,
+    state,
+  })
+  window.close()
 }
 
 function receiveMessage(event: MessageEvent) {
@@ -25,7 +22,7 @@ function receiveMessage(event: MessageEvent) {
     return
   }
 
-  Streamlit.setComponentValue(data)
+  Streamlit.setComponentValue([data.code, window.location.href])
 }
 
 /**
@@ -60,7 +57,8 @@ function onRender(event: Event): void {
     const params: Record<any, any> = {
       client_id: data.args.client_id,
       redirect_uri: window.location.href, // Redirect to itself.
-      response_type: "token",
+      access_type: "offline",
+      response_type: "code",
       scope: data.args.scopes.join(" "),
       include_granted_scopes: "true",
       state: "streamlit-google-oauth",
